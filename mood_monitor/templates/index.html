@@ -1,0 +1,246 @@
+{% extends "base.html" %}
+
+{% block head_extras %}
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <style>
+        /* CSS específico do index */
+        form { display: flex; gap: 20px; align-items: flex-end; justify-content: center; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
+        select, input[type="date"] { padding: 10px; border: 1px solid #ccc; border-radius: 4px; }
+        .chart-grid { display: grid; grid-template-columns: 2fr 1fr; gap: 20px; }
+        .chart-container { height: 400px; }
+        /* Estilo da caixa de notificação */
+        #alertBox { 
+            display: none; 
+            padding: 10px; 
+            margin-bottom: 15px; 
+            border-radius: 4px; 
+            font-weight: bold;
+            text-align: center;
+            border: 1px solid;
+        }
+    </style>
+{% endblock %}
+
+{% block content %}
+    <h1>Monitor de Humor Diário</h1>
+
+    <div class="container">
+        <h2>Registrar Seu Humor</h2>
+        <div id="alertBox" style="display: none;"></div> 
+        
+        <form id="moodForm" onsubmit="submitForm(event)">
+            <div>
+                <label for="data">Data:</label>
+                <input type="date" id="data" name="data" required value="{{ data_padrao }}">
+            </div>
+            <div>
+                <label for="humor">Humor:</label>
+                <select id="humor" name="humor" required>
+                    <option value="Ótimo">Ótimo</option>
+                    <option value="Bom">Bom</option>
+                    <option value="Neutro">Neutro</option>
+                    <option value="Ruim">Ruim</option>
+                    <option value="Péssimo">Péssimo</option>
+                </select>
+            </div>
+            <div>
+                <button type="submit" class="btn-submit">Registrar</button>
+            </div>
+        </form>
+    </div>
+    
+    <hr>
+
+    <div class="chart-grid">
+        <div class="container chart-container">
+            <h2>Histórico de Humor (Linha do Tempo e Tendência)</h2>
+            <canvas id="moodChartLine"></canvas> 
+        </div>
+        
+        <div class="container chart-container">
+            <h2>Frequência</h2>
+            <canvas id="moodChartFrequency"></canvas>
+        </div>
+    </div>
+
+
+    <script>
+        let myMoodChartLine;
+        let myMoodChartFrequency;
+
+        // Função para mostrar feedback ao usuário
+        function showNotification(message, isError = false) {
+            const alertBox = document.getElementById('alertBox');
+            if (!alertBox) return;
+
+            alertBox.textContent = message;
+            alertBox.style.backgroundColor = isError ? '#f8d7da' : '#d4edda';
+            alertBox.style.borderColor = isError ? '#f5c6cb' : '#c3e6cb';
+            alertBox.style.color = isError ? '#721c24' : '#155724';
+            alertBox.style.display = 'block';
+            
+            setTimeout(() => {
+                alertBox.style.display = 'none';
+            }, 3000);
+        }
+        
+        // Função para lidar com a submissão via AJAX
+        async function submitForm(event) {
+            event.preventDefault();
+
+            const form = document.getElementById('moodForm');
+            const formData = new FormData(form);
+            
+            try {
+                const response = await fetch('/', {
+                    method: 'POST',
+                    body: formData 
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    showNotification(result.mensagem, false);
+                    drawMoodCharts(); 
+                } else {
+                    showNotification(result.mensagem, true);
+                }
+            } catch (error) {
+                console.error('Erro de rede:', error);
+                showNotification('Erro de conexão com o servidor.', true);
+            }
+        }
+
+        // Função central para desenhar AMBOS os gráficos
+        async function drawMoodCharts() {
+            const response = await fetch('/dados_humor');
+            const data = await response.json();
+
+            // Debug no console do navegador para inspecionar o JSON
+            console.log("JSON de dados recebido:", data);
+            
+            // VERIFICAÇÃO CRÍTICA CORRIGIDA: Verifica o array 'data' dentro do primeiro dataset
+            const hasData = data.linha && 
+                            data.linha.datasets && 
+                            data.linha.datasets.length > 0 && 
+                            data.linha.datasets[0].data.length > 0;
+
+            if (!hasData) {
+                 if (window.myMoodChartLine) window.myMoodChartLine.destroy();
+                 if (window.myMoodChartFrequency) window.myMoodChartFrequency.destroy();
+                 console.warn("Nenhum dado de humor encontrado para desenhar. Os gráficos estão vazios.");
+                 return;
+            }
+
+            // 1. Desenha o Gráfico de Linha (Histórico e Tendência)
+            drawChartLine(data.linha);
+
+            // 2. Desenha o Gráfico de Frequência
+            drawChartFrequency(data.frequencia);
+        }
+
+        // --- Funções de Desenho ---
+        
+        function drawChartLine(data) {
+            const canvas = document.getElementById('moodChartLine');
+            if (!canvas) {
+                console.error("Canvas 'moodChartLine' não encontrado.");
+                return;
+            }
+            const ctxLine = canvas.getContext('2d');
+            
+            // Destruição mais segura
+            if (window.myMoodChartLine) {
+                window.myMoodChartLine.destroy();
+            }
+
+            const moodMap = { 1: 'Péssimo', 2: 'Ruim', 3: 'Neutro', 4: 'Bom', 5: 'Ótimo' };
+            
+            window.myMoodChartLine = new Chart(ctxLine, {
+                type: 'line', 
+                data: data,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value, index, values) {
+                                    return moodMap[value] || '';
+                                },
+                                stepSize: 1
+                            },
+                            min: 1,
+                            max: 5,
+                            title: {
+                                display: true,
+                                text: 'Nível de Humor'
+                            }
+                        },
+                        x: {
+                             title: {
+                                display: true,
+                                text: 'Data de Registro'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true
+                        }
+                    }
+                }
+            });
+        }
+        
+        function drawChartFrequency(data) {
+            const canvas = document.getElementById('moodChartFrequency');
+             if (!canvas) {
+                console.error("Canvas 'moodChartFrequency' não encontrado.");
+                return;
+            }
+            const ctxFrequency = canvas.getContext('2d');
+            
+            // Destruição mais segura
+            if (window.myMoodChartFrequency) {
+                window.myMoodChartFrequency.destroy();
+            }
+
+            window.myMoodChartFrequency = new Chart(ctxFrequency, {
+                type: 'bar', // Gráfico de barras para frequência
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        label: 'Contagem de Registros',
+                        data: data.data,
+                        backgroundColor: data.backgroundColor,
+                        borderColor: data.backgroundColor.map(color => color.replace('0.8', '1')), // Borda sólida
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                precision: 0 // Apenas números inteiros para contagem
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        }
+                    }
+                }
+            });
+        }
+
+        // Garante que ambos os gráficos sejam desenhados assim que a página carregar
+        document.addEventListener('DOMContentLoaded', drawMoodCharts);
+    </script>
+{% endblock %}

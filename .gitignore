@@ -1,0 +1,26 @@
+# Arquivos de Ambiente Virtual e Gerenciamento de Pacotes
+# O Pipenv cria virtualenvs centralizados ou na pasta .venv
+.venv/
+# Ignora a pasta venv antiga (se ainda estiver no diretjeto)
+venv/
+
+# Arquivos de Cache e Build
+__pycache__/
+*.pyc
+*.pyo
+*~
+.pytest_cache/
+
+# Arquivos de IDEs Comuns
+.vscode/
+.idea/
+
+# Arquivos de Dados e Log
+*.log
+*.sqlite
+*.db
+mood_monitor.db
+
+# Arquivos de Extensões Específicas
+# Ignora o ambiente do Flask-Migrate/Alembic, que é gerado localmente
+migrations/versions/

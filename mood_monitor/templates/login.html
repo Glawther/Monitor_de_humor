@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}Entrar{% endblock %}
+{% block content %}
+<div class="container" style="max-width: 400px; margin-top: 50px;">
+    <h2>Entrar na Conta</h2>
+    <form method="POST" action="{{ url_for('main.login') }}">
+        <div class="form-group">
+            <label for="username">Usuário:</label>
+            <input type="text" id="username" name="username" required>
+        </div>
+        <div class="form-group">
+            <label for="password">Senha:</label>
+            <input type="password" id="password" name="password" required>
+        </div>
+        <button type="submit" class="btn-submit">Entrar</button>
+    </form>
+    <p style="margin-top: 20px;">Não tem uma conta? <a href="{{ url_for('main.register') }}">Registre-se aqui</a>.</p>
+</div>
+{% endblock %}
